@@ -23,8 +23,9 @@ welcome_screen: false
 # netinstall: false
 # use_rsync: true
 # use_unsquashfs: true
-# remove_packages:
-#   - 17g-installer
+remove_packages:
+  - 17g-installer
+  - live-*
 
 ## User section
 # autologin_enabled: true
