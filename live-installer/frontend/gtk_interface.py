@@ -43,7 +43,8 @@ class InstallerWindow:
         Gtk.main()
 
     def __init__(self, fullscreen=False):
-        GLib.set_prgname("17g-installer")
+        GLib.set_prgname("org.17g.installer")
+
         # build the setup object (where we put all our choices) and the
         # installer
         self.setup = Setup()
