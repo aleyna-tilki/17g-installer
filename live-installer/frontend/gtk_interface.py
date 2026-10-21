@@ -12,7 +12,10 @@ from frontend import *
 from frontend.dialogs import QuestionDialog, ErrorDialog, WarningDialog
 from frontend.keyboardview import kbdpreview
 from installer import InstallerEngine, Setup, NON_LATIN_KB_LAYOUTS
-from logger import _file as LOG_FILE_PATH
+
+gi.require_version('Vte', '2.91')
+
+from gi.repository import Gio, GLib, Vte
 
 gettext.bindtextdomain('xkeyboard-config', '/usr/share/locale')
 gettext.textdomain('xkeyboard-config')
@@ -338,13 +341,9 @@ class InstallerWindow:
         self.gtkimages.append(img)
         self.gtkpixbufs.append(pixbuf)
         self.buffer = Gtk.TextBuffer()
-        self.text_logs = self.builder.get_object("text_logs")
         self.text_logs_container = self.builder.get_object("text_logs_container")
         self.slidebox = self.builder.get_object("slidebox")
-        self.log_file = open(LOG_FILE_PATH, "r")
-        threading.Thread(target=self.monitor_logs,daemon=True).start()
-        self.size_allocation_handler = self.text_logs.connect("size-allocate", self.scroll_to_bottom)
-        self.text_logs.connect("map", self.scroll_to_bottom)
+        self.logfile = config.get("log_file", "/var/log/17g-installer.log")
 
         # build partition list
         self.should_pulse = False
@@ -423,6 +422,25 @@ class InstallerWindow:
             self.builder.get_object("progress_%d" % self.PAGE_USER).hide()
 
         self.ui_init = True
+        # vte for logs
+        self.terminal = Vte.Terminal()
+        self.terminal.set_input_enabled(False)
+        vte_scroll = Gtk.ScrolledWindow()
+        vte_scroll.add(self.terminal)
+        self.text_logs_container.pack_start(vte_scroll, True, True, 0)
+        vte_scroll.show_all()
+        self.text_logs_container.hide()
+
+        def update_vte_color(vte):
+            style_context = self.window.get_style_context()
+            background_color= style_context.get_background_color(Gtk.StateFlags.NORMAL);
+            foreground_color= style_context.get_color(Gtk.StateFlags.NORMAL);
+            vte.set_color_background(background_color)
+            vte.set_color_foreground(foreground_color)
+
+        update_vte_color(self.terminal)
+
+        self.monitor_logs(self.logfile)
 
         if self.testmode:
             self.builder.get_object("label_install_progress").set_text("text "*100)
@@ -433,19 +451,19 @@ class InstallerWindow:
             if not os.path.exists("/tmp/winroot"):
                 os.mkdir("/tmp/winroot")
             for disk_path in partitioning.get_partitions():
-                log("Searching: {}".format(disk_path))
+                print("Searching: {}".format(disk_path))
                 if 0 == os.system(
                         "mount -o ro {} /tmp/winroot".format(disk_path)):
                     if os.path.exists(
                             "/tmp/winroot/Windows/System32/ntoskrnl.exe"):
                         self.setup.winroot = disk_path
-                        log("Found windows rootfs: {}".format(disk_path))
+                        print("Found windows rootfs: {}".format(disk_path))
                     elif os.path.exists("/tmp/winroot/EFI/Microsoft/Boot/bootmgfw.efi"):
                         self.setup.winefi = disk_path
-                        log("Found windows efifs: {}".format(disk_path))
+                        print("Found windows efifs: {}".format(disk_path))
                     elif os.path.exists("/tmp/winroot/bootmgr"):
                         self.setup.winboot = disk_path
-                        log("Found windows boot: {}".format(disk_path))
+                        print("Found windows boot: {}".format(disk_path))
                 while 0 == os.system("umount -lf /tmp/winroot"):
                     True # dummy action
             if self.setup.winroot and (
@@ -464,6 +482,22 @@ class InstallerWindow:
                     timezones.select_timezone(row)
                     break
             break
+
+    def monitor_logs(self, path):
+        # Spawn a shell in the terminal
+        self.terminal.spawn_async(
+                Vte.PtyFlags.DEFAULT,
+                "/",
+                ["/usr/bin/tail", "-f", path],
+                None,
+                GLib.SpawnFlags.DO_NOT_REAP_CHILD,
+                None,
+                None,
+                -1,
+                None,
+                None,
+                None
+            )
 
     def manually_edit_partitions(self,widget):
         """ Edit only known disks, selected one first """
@@ -494,7 +528,7 @@ class InstallerWindow:
             window_title = config.get(
                 "distro_title", "17g") + " - " + _("Installer")
         except BaseException:
-            err("\"distro_title\" varible not found on config. Using default.")
+            print("\"distro_title\" varible not found on config. Using default.")
         self.window.set_title(window_title)
 
         # Header
@@ -928,13 +962,27 @@ class InstallerWindow:
         if config.get("allow_auto_novariant", True):
             self.setup.keyboard_variant = ""
 
+    def _get_cmdline_kbd(self):
+        layout = ""
+        variant = ""
+        with open("/proc/cmdline","r") as f:
+            cmdline = f.read()
+            for word in cmdline.split():
+                if "keyboard-layouts=" in word:
+                    layout = word.split("=")[1]
+                elif "keyboard-variants=" in word:
+                    variant = word.split("=")[1]
+        return (layout, variant)
+
     def build_kb_lists(self):
         ''' Do some xml kung-fu and load the keyboard stuffs '''
         # Determine the layouts in use
-        keyboard_geom = subprocess.getoutput("setxkbmap -query | awk '/^(model)/{print $2}'")
-        self.setup.keyboard_layout = subprocess.getoutput("setxkbmap -query | awk '/^(layout)/{print $2}'")
-        self.setup.keyboard_variant = subprocess.getoutput("setxkbmap -query | awk '/^(variant)/{print $2}'")
-        self.keyboardview.update(self.setup.keyboard_layout, self.setup.keyboard_variant)
+        (self.setup.keyboard_layout, self.setup.keyboard_variant) = self._get_cmdline_kbd()
+        if self.setup.keyboard_layout == "":
+            # X11 way
+            self.setup.keyboard_layout = subprocess.getoutput("setxkbmap -query 2>/dev/null | awk '/^(layout)/{print $2}'")
+            self.setup.keyboard_variant = subprocess.getoutput("setxkbmap -query 2>/dev/null | awk '/^(variant)/{print $2}'")
+            self.keyboardview.update(self.setup.keyboard_layout, self.setup.keyboard_variant)
         if "," in self.setup.keyboard_layout:
             self.setup.keyboard_layout = self.setup.keyboard_layout.split(",")[
                 0]
@@ -950,6 +998,7 @@ class InstallerWindow:
         variants = defaultdict(_ListStore_factory)
 
         # Keyboard model
+        keyboard_geom = subprocess.getoutput("setxkbmap -query 2>/dev/null | awk '/^(model)/{print $2}'")
         for model in common.get_keyboard_model_list():
             iterator = models.append(model)
             if model[1] == keyboard_geom:
@@ -1604,47 +1653,15 @@ class InstallerWindow:
                                    bold(_("enabled") if _lux else _("disabled")),))
         self.builder.get_object("treeview_overview").expand_all()
 
-    def continuously_read_file(self, file_path):
-        with open(file_path, 'r') as file:
-            file.seek(0,2)
-            while True:
-                line = file.readline()
-                if not line:
-                    time.sleep(0.1)
-                    continue
-                yield line
-
-    def monitor_logs(self):
-        for line in self.continuously_read_file(LOG_FILE_PATH):
-            self.buffer.insert(self.buffer.get_end_iter(), line)
-            self.text_logs.set_buffer(self.buffer)
-            # This is neccecary to prevent a bug that sometimes causes the text_logs_containers not scrolling to the bottom
-            time.sleep(0.1)
-
-            # Scroll to the bottom of the text_logs_container if necessary
-            adj = self.text_logs_container.get_vadjustment()
-            adj_value = adj.get_upper() - adj.get_page_size()
-            if adj_value - adj.get_page_size() < adj.get_value():
-                GLib.idle_add(adj.set_value, adj_value)
-
     def show_logs(self, widget):
         if widget.get_active():
             self.slidebox.set_visible(False)
             self.text_logs_container.set_visible(True)
-            # Scroll to the bottom of the text_logs GtkTextView when the text_logs_container is visible
-            self.text_logs.handler_unblock(self.size_allocation_handler)
         else:
             self.text_logs_container.set_visible(False)
             self.slidebox.set_visible(True)
-            # This will prevent a bug that sometimes causes the text_logs_containers not scrolling to the bottom
-            self.text_logs.handler_unblock(self.size_allocation_handler)
-    
-    def scroll_to_bottom(self, widget, *args):
-        adj = self.text_logs_container.get_vadjustment()
-        adj_value = adj.get_upper() - adj.get_page_size()
-        GLib.idle_add(adj.set_value, adj_value)
-        # Blocking the handler allows the user to scroll to the top of the text_logs_container
-        self.text_logs.handler_block(self.size_allocation_handler)
+
+
 
     @idle
     def show_error_dialog(self, message, detail):
@@ -1668,7 +1685,7 @@ class InstallerWindow:
 
     @asynchronous
     def do_install(self):
-        log(" ## INSTALLATION ")
+        print(" ## INSTALLATION ")
         ''' Actually perform the installation .. '''
 
         self.installer.set_progress_hook(self.update_progress)
@@ -1716,7 +1733,7 @@ class InstallerWindow:
             while(self.showing_last_dialog):
                 time.sleep(0.1)
 
-            log(" ## INSTALLATION COMPLETE ")
+            print(" ## INSTALLATION COMPLETE ")
 
         Gtk.main_quit()
         sys.exit(0)
@@ -1729,7 +1746,7 @@ class InstallerWindow:
     @idle
     def update_progress(self, current=0, total=0, pulse=True, done=False, message="", nolog=""):
         if not nolog:
-            log(message)
+            print(message)
         if not current:
             current = 1
         if not total:
