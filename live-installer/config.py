@@ -3,7 +3,8 @@ import sys
 import subprocess
 import yaml
 from glob import glob
-from logger import log, err, inf, set_logfile
+
+from logger import set_logfile
 
 sys.path.insert(1, '/lib/live-installer')
 if (os.path.isdir("/lib/live-installer")):
@@ -15,10 +16,10 @@ def load_config(config_path):
     if os.path.isfile(config_path):
         file = open(config_path, "r")
         content = file.read()
-        inf("#Reading yaml file:" + config_path)
-        log("Loading: "+config_path)
+        print("#Reading yaml file:" + config_path)
+        print("Loading: "+config_path)
     else:
-        err("{} doesn't exists. Please create config file!".format(config_path))
+        print("{} doesn't exists. Please create config file!".format(config_path))
         return {}
 
     try:
@@ -64,7 +65,7 @@ if(get("distribution", "auto") == "auto"):
     for distro_system in glob("configs/distribution/*"):
         distro = load_config(distro_system)
         if not distro:
-            err("Failed to load: " + distro_system)
+            print("Failed to load: " + distro_system)
         elif "check_this_dir" in distro and os.path.exists(distro["check_this_dir"]):
             break
 else:
@@ -76,7 +77,7 @@ if(get("initramfs_system", "auto") == "auto"):
     for initramfs_system in glob("configs/initramfs_systems/*"):
         initramfs = load_config(initramfs_system)
         if not initramfs:
-            err("Failed to load: " + initramfs_system)
+            print("Failed to load: " + initramfs_system)
         elif "check_this_dir" in initramfs and os.path.exists(initramfs["check_this_dir"]):
             break
 else:
@@ -89,7 +90,7 @@ if(get("package_manager", "auto") == "auto"):
     for package_manager in glob("configs/package_managers/*"):
         pm = load_config(package_manager)
         if not pm:
-            err("Failed to load: " + package_manager)
+            print("Failed to load: " + package_manager)
         elif "check_this_dir" in pm and os.path.exists(pm["check_this_dir"]):
             break
 else:
@@ -101,7 +102,7 @@ if(get("display_manager", "auto") == "auto"):
     for display_manager in glob("configs/display_managers/*"):
         display_manager = load_config(display_manager)
         if not display_manager:
-            err("Failed to load: " + display_manager)
+            print("Failed to load: " + display_manager)
         elif "check_this_dir" in display_manager and os.path.exists(display_manager["check_this_dir"]):
             break
 else:
@@ -135,7 +136,7 @@ def package_manager(process, packages=[]):
 def update_initramfs():
     commands = []
     for command in initramfs["commands"]:
-        log(initramfs)
+        print(initramfs)
         if "{kernel_version}" in command:
             kernel_version = subprocess.getoutput("uname -r")
             command = command.replace('{kernel_version}', kernel_version)

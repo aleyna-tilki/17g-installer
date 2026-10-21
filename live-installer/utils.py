@@ -4,7 +4,6 @@ import sys
 import threading
 import config
 from gi.repository import GObject
-from logger import log, err, inf
 
 def memoize(func):
     """ Caches expensive function calls.
@@ -83,7 +82,7 @@ def is_cmd(cmd):
     return os.system("which "+cmd) == 0
 
 def run(cmd, vital=True):
-    inf("Running: " + cmd)
+    print("Running: " + cmd)
     if "||" in cmd:
         mode = cmd.split("||")[0].strip()
         cmd = cmd.split("||")[1].strip()
@@ -94,7 +93,7 @@ def run(cmd, vital=True):
     else:
         i = int(os.system(cmd)/256)
     if vital and i != 0:
-        err("Failed to run command (Exited with {}): {}".format(
+        print("Failed to run command (Exited with {}): {}".format(
             str(i), cmd))
     return i
 
@@ -135,7 +134,11 @@ def set_governor(governor):
         i += 1
 
 def single_instance():
-    pidfile = "/run/live-installer.pid"
+    # Use temp directory for PID file in test mode
+    if "TEST" in os.environ:
+        pidfile = "/tmp/live-installer.pid"
+    else:
+        pidfile = "/run/live-installer.pid"
     def writepid():
         with open(pidfile, "w") as f:
             f.write(str(os.getpid()))

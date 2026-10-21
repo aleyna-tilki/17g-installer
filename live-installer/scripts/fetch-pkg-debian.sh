@@ -28,15 +28,15 @@ rm -rf /target/debs
 
 # fetch common grub packages
 fetch_deb "grub-common" "grub2-common" "os-prober" "gettext-base" \
-           "libefiboot1" "libefivar1"
+           "libefiboot1t64" "libefivar1t64" "libfuse2t64"
 
 # fetch platform spesific packages
 if [ -d /sys/firmware/efi ] ; then
     fetch_deb "efibootmgr" 
     if [ "$(cat /sys/firmware/efi/fw_platform_size)" == "32" ] ; then
-        fetch_deb "grub-efi-ia32" "grub-efi-ia32-bin"
+        fetch_deb "grub-efi-ia32" "grub-efi-ia32-bin grub-efi-ia32-unsigned"
     else
-        fetch_deb "grub-efi-amd64" "grub-efi-amd64-bin"
+        fetch_deb "grub-efi-amd64" "grub-efi-amd64-bin grub-efi-amd64-unsigned"
     fi
 else
     fetch_deb "grub-pc" "grub-pc-bin"

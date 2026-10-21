@@ -1,46 +1,26 @@
 import os
 import sys
 
-logfile = None
 _file = "/var/log/17g-installer"
+
+def reopen(f,option,stream):
+    import os
+    oldf = open(f,option)
+    oldfd = oldf.fileno()
+    newfd = stream.fileno()
+    os.close(newfd)
+    os.dup2(oldfd, newfd)
 
 def set_logfile(path):
     if os.getuid() != 0:
         return
-    global logfile, _file
-    if logfile:
-        logfile.flush()
-        logfile.close()
+    global _file
     if os.path.isfile(path):
         os.unlink(path)
     _file=path
-    logfile = open(path,"a")
+    reopen(path, "a", sys.stdout)
+    reopen(path, "a", sys.stderr)
 
 if os.getuid() != 0:
     _file = "/tmp/17g-installer.log"
-    logfile = open(_file,"a")
-
-set_logfile(_file)
-
-
-def log(output, err=False):
-    output = str(output)
-    output += "\n"
-    logfile.write(output)
-    logfile.flush()
-    if err:
-        sys.stderr.write(output)
-    else:
-        sys.stdout.write(output)
-
-
-def err(output):
-    sys.stderr.write("\x1b[31;1m")
-    log(output, True)
-    sys.stderr.write("\x1b[;0m")
-
-
-def inf(output):
-    sys.stdout.write("\x1b[32;1m")
-    log(output, False)
-    sys.stdout.write("\x1b[;0m")
+    set_logfile(_file)
