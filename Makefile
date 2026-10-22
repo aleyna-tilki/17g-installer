@@ -1,16 +1,15 @@
 DESTDIR=/
-XINITRCDIR=/etc/X11/Xsession.d/
 all: clean build
 
 build: buildmo
 	mkdir -p build/lib/ || true
 	cp -prfv live-installer build/lib/
 	@if [  -d custom/configs ]; then \
-	    cp -prfv custom/configs build/lib/live-installer/; \
+	    cp -rfv custom/configs build/lib/live-installer/; \
 	fi
 	@if [ -d custom/branding ]; then \
 	    rm -rf build/lib/live-installer/branding/slides/; \
-	    cp -prfv custom/branding build/lib/live-installer/; \
+	    cp -rfv custom/branding build/lib/live-installer/; \
 	fi
 	chmod +x -R build/lib/
 
@@ -39,18 +38,18 @@ install:
 	rm -rf  $(DESTDIR)/lib/live-installer || true
 	mkdir -p $(DESTDIR)/lib || true
 	mkdir -p $(DESTDIR)/usr || true
-	cp -prfv build/usr/* $(DESTDIR)/usr/
-	cp -prfv build/lib/* $(DESTDIR)/lib/
+	cp -rfv build/usr/* $(DESTDIR)/usr/
+	cp -rfv build/lib/* $(DESTDIR)/lib/
 	mkdir -p $(DESTDIR)/usr/share/applications/ || true
 	mkdir -p $(DESTDIR)/usr/bin/ || true
 	mkdir -p $(DESTDIR)/etc/xdg/autostart/
 	mkdir -p $(DESTDIR)/usr/share/icons/hicolor/scalable/status/
-	mkdir -p $(DESTDIR)/$(XINITRCDIR) || true
+	mkdir -p $(DESTDIR)/etc/profile.d || true
 	mkdir -p $(DESTDIR)/usr/share/polkit-1/actions/ || true
 	mkdir -p $(DESTDIR)/usr/share/icons/hicolor/symbolic/status/ || true
 	install data/17g-welcome.desktop $(DESTDIR)/etc/xdg/autostart/
 	install data/live-installer.desktop $(DESTDIR)/usr/share/applications/live-installer.desktop
-	install data/00-live $(DESTDIR)/$(XINITRCDIR)/00-live
+	install data/profile.sh $(DESTDIR)/etc/profile.d/live-installer.sh
 	install data/live-installer.sh $(DESTDIR)/usr/bin/live-installer
 	install data/org.17g.installer.policy $(DESTDIR)/usr/share/polkit-1/actions/
 	@if [ -f custom/live-installer.desktop ] ; then \
@@ -70,7 +69,6 @@ uninstall:
 	rm -rf $(DESTDIR)/lib/live-installer
 	rm -f $(DESTDIR)/usr/bin/live-installer
 	rm -f $(DESTDIR)/usr/share/applications/live-installer.desktop
-	rm -f $(DESTDIR)/$(XINITRCDIR)/00-live
 	rm -f $(DESTDIR)/usr/share/polkit-1/actions/org.17g.installer.policy
 	rm -f $(DESTDIR)/etc/xdg/autostart/17g-welcome.desktop
 clean:
