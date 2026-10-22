@@ -25,7 +25,6 @@ welcome_screen: false
 # use_unsquashfs: true
 remove_packages:
   - 17g-installer
-  - live-*
 
 ## User section
 # autologin_enabled: true
